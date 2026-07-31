@@ -30,7 +30,19 @@ describe("categorize", () => {
     assert.equal(categorize("navigation.gnss.antennaAltitude"), "height");
   });
 
+  test("recognises voltage paths", () => {
+    assert.equal(categorize("electrical.batteries.house.voltage"), "voltage");
+  });
+
+  test("recognises pressure paths", () => {
+    assert.equal(categorize("environment.outside.pressure"), "pressure");
+  });
+
+  test("recognises humidity paths", () => {
+    assert.equal(categorize("environment.outside.humidity"), "humidity");
+  });
+
   test("returns null for unrecognised paths", () => {
-    assert.equal(categorize("electrical.batteries.house.voltage"), null);
+    assert.equal(categorize("electrical.batteries.house.stateOfCharge"), null);
   });
 });

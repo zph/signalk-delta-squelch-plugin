@@ -5,9 +5,9 @@ const PLUGIN_ID = "signalk-delta-squelch-plugin";
 module.exports = function (app) {
   const plugin = {
     id: PLUGIN_ID,
-    name: "Squelch",
+    name: "Delta Squelch",
     description:
-      "Rounds noisy SignalK values (position, temperature, velocity, heading, height) to their sensor's real precision and " +
+      "Rounds noisy SignalK values (position, temperature, velocity, heading, height, voltage, pressure, humidity) to their sensor's real precision and " +
       "drops deltas that don't change at that precision — cutting delta volume at the source, for every consumer, not just one subscriber.",
   };
 
@@ -33,6 +33,9 @@ module.exports = function (app) {
           velocity: { type: "number", title: "Velocity (m/s)", default: 0.05 },
           heading: { type: "number", title: "Heading / angle (rad, 0.01745 ≈ 1°)", default: 0.01745 },
           height: { type: "number", title: "Height / depth (m)", default: 0.1 },
+          voltage: { type: "number", title: "Voltage (V)", default: 0.1 },
+          pressure: { type: "number", title: "Pressure (Pa, 100 == 1 mbar)", default: 100 },
+          humidity: { type: "number", title: "Humidity (ratio 0-1, 0.001 == 0.1%)", default: 0.001 },
         },
       },
       positionResolution: {
@@ -40,7 +43,7 @@ module.exports = function (app) {
         title: "Default position rounding (degrees)",
         properties: {
           latitude: { type: "number", title: "Latitude resolution (deg, 0.00001 ≈ 1.1m)", default: 0.00001 },
-          longitude: { type: "number", title: "Longitude resolution (deg)", default: 0.00001 },
+          longitude: { type: "number", title: "Longitude resolution (deg, 0.00001 ≈ 1.1m at Equator, 0.44 at Polar Circles )", default: 0.00001 },
         },
       },
       positionOutlier: {
@@ -48,7 +51,7 @@ module.exports = function (app) {
         title: "Position outlier rejection (anchor-watch GPS glitch guard)",
         description:
           "Rejects a single own-vessel position spike implying an unrealistic speed. Tackles the classic anchor-watch false-alarm " +
-          "problem; it does not address slow GPS wander at rest — that's what the position rounding above is for.",
+          "problem; it does not address slow GPS wander at rest.",
         properties: {
           enabled: { type: "boolean", title: "Enabled", default: true },
           maxVesselSpeedKnots: {
@@ -83,7 +86,7 @@ module.exports = function (app) {
             category: {
               type: "string",
               title: "Category (optional — auto-detected if omitted)",
-              enum: ["position", "temperature", "velocity", "heading", "height", "custom"],
+              enum: ["position", "temperature", "velocity", "heading", "height", "voltage", "pressure", "humidity", "custom"],
             },
             resolution: { type: "number", title: "Resolution (non-position paths)" },
             latResolution: { type: "number", title: "Latitude resolution (deg, position only)" },

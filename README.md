@@ -48,6 +48,9 @@ boundary won't flip back and forth every sample.
 | `velocity`    | any path containing "speed"                                  | 0.05 m/s (~0.1 knot)       |
 | `heading`     | heading / course / angle / direction / variation / deviation | 0.01745 rad (~1°)          |
 | `height`      | depth / height / altitude / draft / freeboard                | 0.1 m                      |
+| `voltage`     | any path containing "voltage"                                | 0.1 V                      |
+| `pressure`    | any path containing "pressure"                                | 100 Pa (1 mbar)            |
+| `humidity`    | any path containing "humidity"                                | 0.001 (0.1%)               |
 
 Any path that doesn't match one of these is passed through untouched unless
 you add an explicit override.
@@ -63,10 +66,7 @@ dropout), not a one-off spike.
 This only applies to the vessel's own position (`app.selfContext`) — an AIS
 target moving fast isn't an anomaly just because it isn't us — and it only
 addresses large, single-fix jumps. It does **not** fix slow GPS wander at
-anchor; that's what the rounding/squelch above is for. Those are genuinely
-different problems: a spike is one bad sample surrounded by good ones, wander
-is every sample being slightly wrong in a way no single-sample check can
-detect.
+anchor - these are genuinely different problems: a spike is one bad sample surrounded by good ones, wander is every sample being slightly wrong in a way no single-sample check can detect.
 
 ## Configuration
 
@@ -74,8 +74,8 @@ All of the above is configurable from the plugin's config screen:
 
 - **Heartbeat interval** — global default, overridable per path.
 - **Default rounding resolution per category** — temperature, velocity,
-  heading, height (native SignalK SI units), and position (lat/lon in
-  degrees, settable independently).
+  heading, height, voltage, pressure, humidity (native SignalK SI units), and
+  position (lat/lon in degrees, settable independently).
 - **Position outlier settings** — enable/disable, max vessel speed (knots),
   safety margin multiplier, confirmation count, and confirmation window.
 - **Path-specific overrides** — add a path to set its own resolution (or
@@ -91,7 +91,7 @@ Install from the SignalK admin UI **Appstore**, or:
 cd ~/.signalk && npm install @rhizomatics/signalk-delta-squelch-plugin
 ```
 
-Then enable it under Server → Plugin Config → Squelch.
+Then enable it under Server → Plugin Config → Delta Squelch.
 
 ## License
 
