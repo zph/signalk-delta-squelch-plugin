@@ -8,9 +8,9 @@ BETA, use at own risk.
 ## The problem
 
 Sources like GPS receivers emit far more precision, and far more frequent
-updates, than the physical measurement actually supports. At anchor, a typical
+updates (10Hz for modern ones), than the physical measurement actually supports. At anchor, a typical
 GPS fix wanders by several metres from multipath and receiver noise alone —
-producing a stream of deltas like:
+producing a stream of deltas like this example for a berthed boat:
 
 ```json
 {"path": "navigation.position", "value": {"latitude": 54.372581233333334, "longitude": -4.907908233333333}}
@@ -20,17 +20,20 @@ producing a stream of deltas like:
 
 None of that movement is real; all of it costs CPU, eMMC and SD Card wear, and power to generate, log, and re-broadcast — multiplied by every plugin and client subscribed to the path. Throttling a single websocket subscription doesn't help: the noise is still generated, still processed by every other consumer, and often still written to disk.
 
+There's an additional benefit if using a column-oriented data store to archive data, such as Parquet, InfluxDB or QuestDB - these databases are much more efficient where there are fewer unique values to store (the 'cardinality') so trimming off the false millimetre position resolution can save on CPU and disk space both when writing data and later querying.
+
+And if you're watching an anchor tracker, there's a little less meaningless clutter on the boat tracks.
+
 ## What this plugin does
 
-It registers a [`registerDeltaInputHandler`](https://demo.signalk.org/documentation/develop/plugins/server_plugin_api.html)
-— a hook that runs _before_ the server applies a delta to the full data model
+It registers a [`registerDeltaInputHandler`](https://demo.signalk.org/documentation/develop/plugins/server_plugin_api.html) — a hook that runs _before_ the server applies a delta to the full data model
 or forwards it to anyone. For each value on a recognised path, it:
 
 1. **Rounds** the value to a resolution matching the sensor's real-world
    accuracy (configurable per category, or per path).
-2. **Squelches** updates that don't move past that resolution, so consumers
+2. **Removes** updates that don't move past that resolution, so consumers
    see clean, sensible numbers arriving only when something actually changed.
-3. Still forwards a **heartbeat** at a configurable interval even with no
+3. Forwards a **heartbeat** at a configurable interval even with no
    change, so nothing downstream mistakes a quiet source for a dead one.
 4. Optionally **rejects GPS position spikes** — the classic anchor-watch
    false-alarm cause, where a single bad fix implies the boat teleported.
@@ -85,13 +88,13 @@ All of the above is configurable from the plugin's config screen:
 
 ## Install
 
-Install from the SignalK admin UI **Appstore**, or:
+Install from the SignalK admin UI **Apps & Plugins** **Store**, or:
 
 ```bash
 cd ~/.signalk && npm install @rhizomatics/signalk-delta-squelch-plugin
 ```
 
-Then enable it under Server → Plugin Config → Delta Squelch.
+Then enable it under **Apps & Plugins** → **Configuration*** → **Delta Squelch**.
 
 ## License
 
