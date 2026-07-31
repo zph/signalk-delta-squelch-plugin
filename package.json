@@ -6,8 +6,8 @@
     "anchor-watch",
     "filter",
     "gps",
-    "noise",
     "nmea",
+    "noise",
     "signalk",
     "signalk-category-utility",
     "signalk-node-server-plugin"
@@ -25,6 +25,7 @@
   "files": [
     "index.js",
     "lib/",
+    "docs/",
     "README.md",
     "CHANGELOG.md"
   ],
@@ -46,7 +47,8 @@
     "signalk-server": "*"
   },
   "signalk": {
-    "displayName": "Delta Squelch"
+    "displayName": "Delta Squelch",
+    "appIcon": "docs/assets/icons/icon.png"
   },
   "signalk-plugin-enabled-by-default": false
 }
