@@ -3,7 +3,7 @@
 Cuts noisy, redundant SignalK deltas at the source, before they reach the full
 data model, other plugins, or connected clients.
 
-BETA, use at own risk.
+BETA, use at own risk, incorrect values may mean GPS positions on plotters or anchor trackers are stale, and likewise for depth, tide or wind data.
 
 ## The problem
 
