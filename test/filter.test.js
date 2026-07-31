@@ -12,7 +12,7 @@ function makeClock(startMs) {
 describe("SquelchFilter — unrecognised paths", () => {
   test("passes values through unchanged", () => {
     const filter = new SquelchFilter();
-    const result = filter.process("vessels.self", "electrical.batteries.house.voltage", 12.68765, true);
+    const result = filter.process("vessels.self", "electrical.batteries.house.stateOfCharge", 12.68765, true);
     assert.deepEqual(result, { keep: true, value: 12.68765 });
   });
 });

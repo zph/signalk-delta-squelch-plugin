@@ -49,8 +49,8 @@ boundary won't flip back and forth every sample.
 | `heading`     | heading / course / angle / direction / variation / deviation | 0.01745 rad (~1°)          |
 | `height`      | depth / height / altitude / draft / freeboard                | 0.1 m                      |
 | `voltage`     | any path containing "voltage"                                | 0.1 V                      |
-| `pressure`    | any path containing "pressure"                                | 100 Pa (1 mbar)            |
-| `humidity`    | any path containing "humidity"                                | 0.001 (0.1%)               |
+| `pressure`    | any path containing "pressure"                               | 100 Pa (1 mbar)            |
+| `humidity`    | any path containing "humidity"                               | 0.001 (0.1%)               |
 
 Any path that doesn't match one of these is passed through untouched unless
 you add an explicit override.

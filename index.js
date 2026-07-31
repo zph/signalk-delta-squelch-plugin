@@ -43,7 +43,11 @@ module.exports = function (app) {
         title: "Default position rounding (degrees)",
         properties: {
           latitude: { type: "number", title: "Latitude resolution (deg, 0.00001 ≈ 1.1m)", default: 0.00001 },
-          longitude: { type: "number", title: "Longitude resolution (deg, 0.00001 ≈ 1.1m at Equator, 0.44 at Polar Circles )", default: 0.00001 },
+          longitude: {
+            type: "number",
+            title: "Longitude resolution (deg, 0.00001 ≈ 1.1m at Equator, 0.44 at Polar Circles )",
+            default: 0.00001,
+          },
         },
       },
       positionOutlier: {

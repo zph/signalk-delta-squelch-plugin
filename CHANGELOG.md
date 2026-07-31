@@ -3,6 +3,7 @@
 All notable changes to this plugin are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [0.1.1]
+
 - Added voltage, humidity and pressure to scope
 
 ## [0.1.0]
