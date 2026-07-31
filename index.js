@@ -114,10 +114,18 @@ module.exports = function (app) {
   // ── Start / stop ───────────────────────────────────────────────────────
 
   let filter = null;
+  let statsTimer = null;
+  const STATS_INTERVAL_MS = 60 * 60 * 1000;
 
   plugin.start = function (options) {
     const { SquelchFilter } = require("./lib/filter");
     filter = new SquelchFilter(options || {});
+
+    statsTimer = setInterval(() => {
+      const { suppressed, spikes } = filter.takeStats();
+      app.debug(`squelch: suppressed ${suppressed} value(s) in the past hour, including ${spikes} rejected GPS spike(s)`);
+    }, STATS_INTERVAL_MS);
+    statsTimer.unref?.();
 
     app.registerDeltaInputHandler((delta, next) => {
       // Once stopped, `filter` is cleared but the server API gives plugins no
@@ -131,7 +139,17 @@ module.exports = function (app) {
         if (update.values && update.values.length > 0) {
           update.values = update.values.filter((pv) => {
             const result = filter.process(delta.context, pv.path, pv.value, isSelf);
-            if (!result.keep) return false;
+            if (!result.keep) {
+              if (result.reason === "spike") {
+                const { from, to, distanceM, impliedSpeedMs } = result.spike;
+                app.debug(
+                  `squelch: rejected GPS spike on ${delta.context}:${pv.path} — ` +
+                    `(${from.latitude}, ${from.longitude}) -> (${to.latitude}, ${to.longitude}), ` +
+                    `${distanceM.toFixed(1)}m implying ${impliedSpeedMs.toFixed(2)}m/s`,
+                );
+              }
+              return false;
+            }
             pv.value = result.value;
             return true;
           });
@@ -148,6 +166,8 @@ module.exports = function (app) {
 
   plugin.stop = function () {
     filter = null;
+    if (statsTimer) clearInterval(statsTimer);
+    statsTimer = null;
   };
 
   return plugin;

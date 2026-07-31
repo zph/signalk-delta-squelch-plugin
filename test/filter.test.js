@@ -140,4 +140,56 @@ describe("SquelchFilter — position outlier (anchor-watch GPS spike) rejection"
     const result = filter.process("vessels.self", "navigation.position", spike, true);
     assert.equal(result.keep, true);
   });
+
+  test("reports the rejected spike's distance and implied speed", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({}, clock);
+    filter.process("vessels.self", "navigation.position", anchored, true);
+    clock.advance(1000);
+    const result = filter.process("vessels.self", "navigation.position", spike, true);
+    assert.equal(result.reason, "spike");
+    assert.deepEqual(result.spike.from, anchored);
+    assert.deepEqual(result.spike.to, spike);
+    assert.ok(result.spike.distanceM > 1000);
+    assert.ok(result.spike.impliedSpeedMs > 100);
+  });
+});
+
+describe("SquelchFilter — stats", () => {
+  test("starts at zero and is unaffected by kept values", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({}, clock);
+    filter.process("vessels.self", "environment.water.temperature", 288.0, true);
+    assert.deepEqual(filter.takeStats(), { suppressed: 0, spikes: 0 });
+  });
+
+  test("counts squelched scalar and position readings as suppressed", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({}, clock);
+    filter.process("vessels.self", "environment.water.temperature", 288.0, true);
+    clock.advance(1000);
+    filter.process("vessels.self", "environment.water.temperature", 288.01, true); // suppressed
+    assert.deepEqual(filter.takeStats(), { suppressed: 1, spikes: 0 });
+  });
+
+  test("counts a rejected GPS spike as both suppressed and a spike", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({}, clock);
+    const anchored = { latitude: 55.772581, longitude: -4.857908 };
+    const spike = { latitude: 55.7826, longitude: -4.857908 };
+    filter.process("vessels.self", "navigation.position", anchored, true);
+    clock.advance(1000);
+    filter.process("vessels.self", "navigation.position", spike, true); // rejected spike
+    assert.deepEqual(filter.takeStats(), { suppressed: 1, spikes: 1 });
+  });
+
+  test("resets counts after being read", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({}, clock);
+    filter.process("vessels.self", "environment.water.temperature", 288.0, true);
+    clock.advance(1000);
+    filter.process("vessels.self", "environment.water.temperature", 288.01, true);
+    filter.takeStats();
+    assert.deepEqual(filter.takeStats(), { suppressed: 0, spikes: 0 });
+  });
 });

@@ -1,6 +1,6 @@
 {
   "name": "@rhizomatics/signalk-delta-squelch-plugin",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Rounds noisy SignalK values to their sensor's real precision and squelches deltas that don't change at that precision, cutting delta volume at the source for every consumer.",
   "keywords": [
     "anchor-watch",
