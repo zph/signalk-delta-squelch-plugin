@@ -44,19 +44,21 @@ boundary won't flip back and forth every sample.
 
 ### Categories and defaults
 
-| Category      | Matches (auto-detected)                                      | Default resolution         |
-| ------------- | ------------------------------------------------------------ | -------------------------- |
-| `position`    | `navigation.position` only                                   | 0.00001° lat & lon (~1.1m) |
-| `temperature` | any path containing "temperature"                            | 0.1 K                      |
-| `velocity`    | any path containing "speed"                                  | 0.05 m/s (~0.1 knot)       |
-| `heading`     | heading / course / angle / direction / variation / deviation | 0.01745 rad (~1°)          |
-| `height`      | depth / height / altitude / draft / freeboard                | 0.1 m                      |
-| `voltage`     | any path containing "voltage"                                | 0.1 V                      |
-| `pressure`    | any path containing "pressure"                               | 100 Pa (1 mbar)            |
-| `humidity`    | any path containing "humidity"                               | 0.001 (0.1%)               |
+| Category      | Matches (auto-detected)                                      | Default resolution           |
+| ------------- | ------------------------------------------------------------ | ---------------------------- |
+| `position`    | `navigation.position` only                                   | 0.000001° lat & lon (~0.11m) |
+| `temperature` | any path containing "temperature"                            | 0.01 K                       |
+| `velocity`    | any path containing "speed"                                  | 0.05 m/s (~0.1 knot)         |
+| `heading`     | heading / course / angle / direction / variation / deviation | 0.01745 rad (~1°)            |
+| `height`      | depth / height / altitude / draft / freeboard                | 0.1 m                        |
+| `voltage`     | any path containing "voltage"                                | 0.1 V                        |
+| `pressure`    | any path containing "pressure"                               | 100 Pa (1 mbar)              |
+| `humidity`    | any path containing "humidity"                               | 0.001 (0.1%)                 |
 
 Any path that doesn't match one of these is passed through untouched unless
 you add an explicit override.
+
+For older GPS antenna, without modern L5 and SBAS for high resolution, `0.00001` may be more appropriate, the default setting covers modern systems that have <1m resolution.
 
 ### Position outlier rejection (anchor-watch GPS spikes)
 

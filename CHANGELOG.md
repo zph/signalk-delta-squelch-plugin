@@ -2,6 +2,11 @@
 
 All notable changes to this plugin are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.1]
+- Adjusted defaults
+ - Position one extra decimal place, to support by default modern <1m resolution GPS, e.g. Garmin 24xd
+ - Temperature one extra decimal place, since Kelvin conversion is always to two decimal places
+
 ## [0.3.0]
 
 - Additional logging, to summarize suppressed deltas, and for spike detection

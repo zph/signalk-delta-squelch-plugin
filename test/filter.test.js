@@ -23,15 +23,15 @@ describe("SquelchFilter — scalar categories (e.g. temperature)", () => {
     const filter = new SquelchFilter({}, clock);
     const result = filter.process("vessels.self", "environment.water.temperature", 288.146, true);
     assert.equal(result.keep, true);
-    assert.equal(result.value, 288.1); // default temperature resolution is 0.1K
+    assert.equal(result.value, 288.15); // default temperature resolution is 0.01K
   });
 
   test("drops readings that don't move past the resolution's hysteresis margin", () => {
     const clock = makeClock(0);
     const filter = new SquelchFilter({}, clock);
-    filter.process("vessels.self", "environment.water.temperature", 288.14, true);
+    filter.process("vessels.self", "environment.water.temperature", 288.134, true);
     clock.advance(1000);
-    const result = filter.process("vessels.self", "environment.water.temperature", 288.17, true); // +0.03, well under 0.15
+    const result = filter.process("vessels.self", "environment.water.temperature", 288.137, true); // +0.003, well under 0.015
     assert.equal(result.keep, false);
   });
 
@@ -73,8 +73,8 @@ describe("SquelchFilter — position rounding", () => {
     const filter = new SquelchFilter({}, clock);
     const result = filter.process("vessels.self", "navigation.position", samples[0], true);
     assert.equal(result.keep, true);
-    assert.equal(result.value.latitude, 55.77258);
-    assert.equal(result.value.longitude, -4.85791);
+    assert.equal(result.value.latitude, 55.772581);
+    assert.equal(result.value.longitude, -4.857908);
   });
 
   test("squelches subsequent at-anchor GPS wander that never exceeds the resolution", () => {

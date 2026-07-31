@@ -29,7 +29,7 @@ module.exports = function (app) {
         title: "Default rounding resolution per category",
         description: "Applied to any recognised path without its own override below. Units are each category's native SignalK SI unit.",
         properties: {
-          temperature: { type: "number", title: "Temperature (K, i.e. 0.1 == 0.1°C step)", default: 0.1 },
+          temperature: { type: "number", title: "Temperature (K, i.e. 0.01 == 0.01°C step)", default: 0.01 },
           velocity: { type: "number", title: "Velocity (m/s)", default: 0.05 },
           heading: { type: "number", title: "Heading / angle (rad, 0.01745 ≈ 1°)", default: 0.01745 },
           height: { type: "number", title: "Height / depth (m)", default: 0.1 },
@@ -42,11 +42,11 @@ module.exports = function (app) {
         type: "object",
         title: "Default position rounding (degrees)",
         properties: {
-          latitude: { type: "number", title: "Latitude resolution (deg, 0.00001 ≈ 1.1m)", default: 0.00001 },
+          latitude: { type: "number", title: "Latitude resolution (deg, 0.000001 ≈ 0.11m)", default: 0.000001 },
           longitude: {
             type: "number",
-            title: "Longitude resolution (deg, 0.00001 ≈ 1.1m at Equator, 0.44 at Polar Circles )",
-            default: 0.00001,
+            title: "Longitude resolution (deg, 0.000001 ≈ 0.11m at Equator, 0.044m at Polar Circles )",
+            default: 0.000001,
           },
         },
       },
