@@ -1,5 +1,12 @@
 # signalk-delta-squelch-plugin
 
+[![npm version](https://img.shields.io/npm/v/@rhizomatics/signalk-delta-squelch-plugin.svg)](https://www.npmjs.com/package/@rhizomatics/signalk-delta-squelch-plugin)
+[![npm downloads](https://img.shields.io/npm/dm/@rhizomatics/signalk-delta-squelch-plugin.svg)](https://www.npmjs.com/package/@rhizomatics/signalk-delta-squelch-plugin)
+[![SignalK Plugin CI](https://github.com/rhizomatics/signalk-delta-squelch-plugin/actions/workflows/signalk-ci.yml/badge.svg)](https://github.com/rhizomatics/signalk-delta-squelch-plugin/actions/workflows/signalk-ci.yml)
+![code style: oxfmt](https://img.shields.io/badge/code_style-oxfmt-blue.svg)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/rhizomatics/signalk-delta-squelch-plugin/blob/main/LICENSE)
+[![boat tech directory](https://boat-tech-directory.rhizomatics.org.uk/images/badge.svg)](https://boat-tech-directory.rhizomatics.org.uk)
+
 Cuts noisy, redundant SignalK deltas at the source, before they reach the full
 data model, other plugins, or connected clients.
 
