@@ -57,6 +57,94 @@ describe("SquelchFilter — scalar categories (e.g. temperature)", () => {
   });
 });
 
+describe("SquelchFilter — text/boolean state values", () => {
+  test("forwards a changing string value every time", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({}, clock);
+    for (const state of ["standby", "auto", "wind", "standby"]) {
+      clock.advance(1000);
+      const result = filter.process("vessels.self", "steering.autopilot.state", state, true);
+      assert.deepEqual(result, { keep: true, value: state });
+    }
+  });
+
+  test("forwards a boolean value every time it changes", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({}, clock);
+    assert.equal(filter.process("vessels.self", "electrical.switches.nav.state", true, true).keep, true);
+    clock.advance(1000);
+    assert.equal(filter.process("vessels.self", "electrical.switches.nav.state", false, true).keep, true);
+  });
+
+  test("forwards the first n unchanging readings, then squelches, using the default threshold of 10", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({}, clock);
+    for (let i = 0; i < 10; i++) {
+      clock.advance(1000);
+      const result = filter.process("vessels.self", "navigation.state", "sailing", true);
+      assert.equal(result.keep, true, `reading ${i + 1} of the first 10 should be forwarded`);
+    }
+    clock.advance(1000);
+    const result = filter.process("vessels.self", "navigation.state", "sailing", true); // 11th identical reading
+    assert.equal(result.keep, false);
+  });
+
+  test("resets the unchanging count once the value changes again", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({ unchangingCountThreshold: 2 }, clock);
+    filter.process("vessels.self", "navigation.state", "sailing", true);
+    clock.advance(1000);
+    filter.process("vessels.self", "navigation.state", "sailing", true);
+    clock.advance(1000);
+    assert.equal(filter.process("vessels.self", "navigation.state", "sailing", true).keep, false); // 3rd identical, past threshold
+    clock.advance(1000);
+    const changed = filter.process("vessels.self", "navigation.state", "motoring", true);
+    assert.deepEqual(changed, { keep: true, value: "motoring" });
+    clock.advance(1000);
+    assert.equal(filter.process("vessels.self", "navigation.state", "motoring", true).keep, true); // back within the new threshold
+  });
+
+  test("unchangingCountThreshold is configurable", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({ unchangingCountThreshold: 3 }, clock);
+    for (let i = 0; i < 3; i++) {
+      clock.advance(1000);
+      assert.equal(filter.process("vessels.self", "navigation.state", "sailing", true).keep, true);
+    }
+    clock.advance(1000);
+    assert.equal(filter.process("vessels.self", "navigation.state", "sailing", true).keep, false);
+  });
+
+  test("still forwards a heartbeat once suppressed", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({ heartbeatSeconds: 10, unchangingCountThreshold: 1 }, clock);
+    filter.process("vessels.self", "navigation.state", "sailing", true);
+    clock.advance(1000);
+    assert.equal(filter.process("vessels.self", "navigation.state", "sailing", true).keep, false); // squelched, past threshold of 1
+    clock.advance(9500); // total 10.5s since last forward
+    const result = filter.process("vessels.self", "navigation.state", "sailing", true);
+    assert.equal(result.keep, true);
+  });
+
+  test("per-path unchangingCountThreshold override takes effect", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({ paths: [{ path: "navigation.state", unchangingCountThreshold: 1 }] }, clock);
+    filter.process("vessels.self", "navigation.state", "sailing", true);
+    clock.advance(1000);
+    const result = filter.process("vessels.self", "navigation.state", "sailing", true); // 2nd identical, past threshold of 1
+    assert.equal(result.keep, false);
+  });
+
+  test("counts squelched state readings as suppressed", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({ unchangingCountThreshold: 1 }, clock);
+    filter.process("vessels.self", "navigation.state", "sailing", true);
+    clock.advance(1000);
+    filter.process("vessels.self", "navigation.state", "sailing", true); // suppressed
+    assert.deepEqual(filter.takeStats(), { suppressed: 1, spikes: 0 });
+  });
+});
+
 describe("SquelchFilter — position rounding", () => {
   // The exact noisy at-anchor sequence from the field report this plugin exists for.
   const samples = [

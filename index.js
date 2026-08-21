@@ -7,8 +7,9 @@ module.exports = function (app) {
     id: PLUGIN_ID,
     name: "Delta Squelch",
     description:
-      "Rounds noisy SignalK values (position, temperature, velocity, heading, height, voltage, pressure, humidity) to their sensor's real precision and " +
-      "drops deltas that don't change at that precision — cutting delta volume at the source, for every consumer, not just one subscriber.",
+      "Rounds noisy SignalK values (position, temperature, velocity, heading, height, voltage, pressure, humidity) to their sensor's real precision, " +
+      "squelches repeated text/boolean values (notification, state, switch paths), and drops deltas that don't change — cutting delta volume at the " +
+      "source, for every consumer, not just one subscriber.",
   };
 
   // ── Config schema ──────────────────────────────────────────────────────
@@ -22,6 +23,14 @@ module.exports = function (app) {
         description:
           "Forward a value at least this often even if it hasn't moved past its rounding resolution, so consumers don't see a stale timestamp.",
         default: 60,
+        minimum: 1,
+      },
+      unchangingCountThreshold: {
+        type: "integer",
+        title: "Unchanging value threshold (text/boolean paths)",
+        description:
+          "Text and boolean values (notification/state/switch paths, etc.) have no rounding resolution, so they're squelched by exact-value repetition instead: this many consecutive identical readings must be seen before further repeats are dropped. Earlier repeats, and the heartbeat above, are always forwarded.",
+        default: 10,
         minimum: 1,
       },
       categoryResolution: {
@@ -96,6 +105,11 @@ module.exports = function (app) {
             latResolution: { type: "number", title: "Latitude resolution (deg, position only)" },
             lonResolution: { type: "number", title: "Longitude resolution (deg, position only)" },
             heartbeatSeconds: { type: "number", title: "Heartbeat override (seconds)" },
+            unchangingCountThreshold: {
+              type: "integer",
+              title: "Unchanging value threshold override (text/boolean paths)",
+              minimum: 1,
+            },
           },
         },
         default: [],

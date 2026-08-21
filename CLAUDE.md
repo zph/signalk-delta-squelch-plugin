@@ -50,7 +50,7 @@ the [SignalK server-api docs](https://demo.signalk.org/documentation/develop/plu
 
 ### `lib/filter.js` — `SquelchFilter`
 
-The stateful core. One instance per plugin `start()`, holding two maps keyed by `` `${context}:${path}` ``:
+The stateful core. One instance per plugin `start()`, holding three maps keyed by `` `${context}:${path}` ``:
 
 - `lastAccepted` — the last raw value actually forwarded, plus its timestamp. Movement is always
   checked against this _raw_ value, not the rounded one, with a `1.5×` resolution margin
@@ -59,11 +59,21 @@ The stateful core. One instance per plugin `start()`, holding two maps keyed by 
 - `pendingSpike` — position-only, tracks a candidate cluster of rejected (spike) readings so a
   _real_ jump (e.g. after a GPS dropout) can still be confirmed and accepted after enough
   consecutive samples agree, rather than freezing the position forever.
+- `unchangingCount` — text/boolean-only, counts consecutive identical readings so far.
 
 `resolveConfig(path)` resolves category + resolution once per path: an explicit entry in the
 `paths` config array wins, else `categorize()`'s auto-detected category and its default resolution,
 else `null` (path untouched). Position is special-cased throughout since its value is a
 `{latitude, longitude}` object rather than a scalar, and needs two independent resolutions.
+
+`process()` special-cases `typeof rawValue === "boolean" || "string"` before consulting
+`resolveConfig`/`categorize()` at all — text/boolean values (notification, state, switch paths) have
+no unit or rounding step, so there's no category to auto-detect. `_processState` dedupes on exact
+equality instead of a resolution: the first `unchangingCountThreshold` consecutive identical
+readings (default 10, `resolveConfig`-independent — see `_stateConfig`) are still forwarded, and only
+once that streak is exceeded does it start being squelched, subject to the same heartbeat as numeric
+paths. A path that only ever emits on a real change never reaches the threshold and is never
+squelched.
 
 Position outlier rejection (`_isSpike`) is only invoked when `isSelf` is true — an AIS contact
 travelling fast isn't a "spike" just because it isn't the vessel we're on.

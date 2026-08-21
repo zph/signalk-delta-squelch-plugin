@@ -2,6 +2,12 @@
 
 All notable changes to this plugin are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.0]
+
+- Squelching repeated values now only kicks in after a sequence of n unchanging values, where n is configurable and defaults to 10
+  - This helps avoid trying to squelch genuinely changing data that has occasional repeat
+- Squelching applies also to repeated text and boolean values
+
 ## [0.3.1]
 
 - Adjusted defaults

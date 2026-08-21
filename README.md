@@ -40,9 +40,12 @@ or forwards it to anyone. For each value on a recognised path, it:
    accuracy (configurable per category, or per path).
 2. **Removes** updates that don't move past that resolution, so consumers
    see clean, sensible numbers arriving only when something actually changed.
-3. Forwards a **heartbeat** at a configurable interval even with no
+3. **Squelches unchanging text/boolean values** — notification, state, and
+   switch paths — once the same value has been seen for a configurable
+   number of consecutive readings in a row (10 by default).
+4. Forwards a **heartbeat** at a configurable interval even with no
    change, so nothing downstream mistakes a quiet source for a dead one.
-4. Optionally **rejects GPS position spikes** — the classic anchor-watch
+5. Optionally **rejects GPS position spikes** — the classic anchor-watch
    false-alarm cause, where a single bad fix implies the boat teleported.
 
 Everything is gated on the _raw_ value with a hysteresis margin (1.5× the
@@ -67,6 +70,20 @@ you add an explicit override.
 
 For older GPS antenna, without modern L5 and SBAS for high resolution, `0.00001` may be more appropriate, the default setting covers modern systems that have <1m resolution.
 
+### Text and boolean values
+
+Paths whose value is a string or boolean (notification states, autopilot
+state, switch positions, ...) have no physical resolution to round to, so
+they're squelched by exact-value repetition instead: a value is only dropped
+once it's been seen unchanged for `unchangingCountThreshold` consecutive
+readings in a row (10 by default). Earlier repeats, any change of value, and
+the heartbeat are always forwarded — so a path that only ever emits on an
+actual change is never squelched at all, and a flappy or rarely-updated path
+still gets the same protection as numeric ones.
+
+This applies to any path emitting a string or boolean value; there's no
+category to auto-detect since there are no units or rounding step involved.
+
 ### Position outlier rejection (anchor-watch GPS spikes)
 
 A single position implying a speed above your configured maximum (with a
@@ -85,15 +102,18 @@ anchor - these are genuinely different problems: a spike is one bad sample surro
 All of the above is configurable from the plugin's config screen:
 
 - **Heartbeat interval** — global default, overridable per path.
+- **Unchanging value threshold** — global default (10) for how many
+  consecutive identical text/boolean readings are forwarded before
+  squelching kicks in, overridable per path.
 - **Default rounding resolution per category** — temperature, velocity,
   heading, height, voltage, pressure, humidity (native SignalK SI units), and
   position (lat/lon in degrees, settable independently).
 - **Position outlier settings** — enable/disable, max vessel speed (knots),
   safety margin multiplier, confirmation count, and confirmation window.
 - **Path-specific overrides** — add a path to set its own resolution (or
-  lat/lon resolution, for position-shaped paths), category, or heartbeat,
-  overriding the category default or handling a path that isn't
-  auto-recognised.
+  lat/lon resolution, for position-shaped paths), category, heartbeat, or
+  unchanging value threshold, overriding the category default or handling a
+  path that isn't auto-recognised.
 
 ## Install
 
