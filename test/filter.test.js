@@ -199,6 +199,21 @@ describe("SquelchFilter — position outlier (anchor-watch GPS spike) rejection"
     assert.equal(result.keep, false);
   });
 
+  test("does not misclassify a tiny real movement as a spike just because it arrived ~1ms later in wall-clock time", () => {
+    // Reproduces a field report: two navigation.position deltas landed ~1ms
+    // apart in processing time (multiple sentences/sources in a burst, not
+    // two genuinely independent fixes), 0.4m apart — naively dividing gives
+    // an impossible ~365m/s "spike" for what's actually ordinary wander.
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({}, clock);
+    filter.process("vessels.self", "navigation.position", anchored, true);
+    clock.advance(1); // 1ms — far below any real GPS/AIS update interval
+    const nearby = { latitude: anchored.latitude + 0.0000036, longitude: anchored.longitude }; // ~0.4m away
+    const result = filter.process("vessels.self", "navigation.position", nearby, true);
+    assert.equal(result.keep, true);
+    assert.notEqual(result.reason, "spike");
+  });
+
   test("accepts the jump once enough consecutive readings confirm it", () => {
     const clock = makeClock(0);
     const filter = new SquelchFilter({}, clock);
@@ -240,6 +255,60 @@ describe("SquelchFilter — position outlier (anchor-watch GPS spike) rejection"
     assert.deepEqual(result.spike.to, spike);
     assert.ok(result.spike.distanceM > 1000);
     assert.ok(result.spike.impliedSpeedMs > 100);
+  });
+
+  test("reports the source of both the accepted fix and the rejected spike", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({}, clock);
+    filter.process("vessels.self", "navigation.position", anchored, true, "garmin-gps.1");
+    clock.advance(1000);
+    const result = filter.process("vessels.self", "navigation.position", spike, true, "garmin-gps.1");
+    assert.equal(result.spike.fromSource, "garmin-gps.1");
+    assert.equal(result.spike.toSource, "garmin-gps.1");
+  });
+});
+
+describe("SquelchFilter — per-source state isolation", () => {
+  // This plugin runs upstream of the SignalK server's own source-priority
+  // resolution, so a path fed by more than one source is seen here as each
+  // source's raw, independent stream, interleaved — squelch state is keyed
+  // by source (as well as context/path) so one source's readings are never
+  // compared against another's.
+  test("a different source's first fix is never spike-checked against another source's last position", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({}, clock);
+    const poorFix = { latitude: 55.772581, longitude: -4.857908 };
+    filter.process("vessels.self", "navigation.position", poorFix, true, "teltonika-gps.1");
+    clock.advance(1000);
+    // ~1.1km away — would look like an impossible jump if compared against
+    // the Teltonika fix, but it's a different device's very first reading.
+    const betterFix = { latitude: 55.7826, longitude: -4.857908 };
+    const result = filter.process("vessels.self", "navigation.position", betterFix, true, "garmin-gps.1");
+    assert.equal(result.keep, true);
+    assert.notEqual(result.reason, "spike");
+  });
+
+  test("two sources on the same numeric path are squelched independently", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({}, clock);
+    filter.process("vessels.self", "environment.water.temperature", 288.0, true, "sensorA");
+    clock.advance(1000);
+    // sensorB's first-ever reading is always forwarded, even though it's
+    // close enough to sensorA's last value that source-less keying would
+    // have squelched it as "no movement".
+    const result = filter.process("vessels.self", "environment.water.temperature", 288.005, true, "sensorB");
+    assert.equal(result.keep, true);
+  });
+
+  test("two sources on the same text path are squelched independently", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({ unchangingCountThreshold: 1 }, clock);
+    filter.process("vessels.self", "navigation.state", "sailing", true, "sourceA");
+    clock.advance(1000);
+    assert.equal(filter.process("vessels.self", "navigation.state", "sailing", true, "sourceA").keep, false); // sourceA past its threshold
+    clock.advance(1000);
+    const result = filter.process("vessels.self", "navigation.state", "sailing", true, "sourceB"); // sourceB's first-ever reading
+    assert.equal(result.keep, true);
   });
 });
 

@@ -2,6 +2,13 @@
 
 All notable changes to this plugin are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.1]
+
+- Improved handling of GNSS position spikes
+  - Elapsed time floor moved to 50ms from 1ms to cope better with modern 10Hz GPS
+  - Multiple GNSS sources handled independently
+- Improved logging of rejected GNSS position spikes
+
 ## [0.4.0]
 
 - Squelching repeated values now only kicks in after a sequence of n unchanging values, where n is configurable and defaults to 10

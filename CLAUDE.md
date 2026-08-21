@@ -50,7 +50,13 @@ the [SignalK server-api docs](https://demo.signalk.org/documentation/develop/plu
 
 ### `lib/filter.js` — `SquelchFilter`
 
-The stateful core. One instance per plugin `start()`, holding three maps keyed by `` `${context}:${path}` ``:
+The stateful core. One instance per plugin `start()`, holding three maps keyed by
+`` `${context}:${path}:${source}` `` (`source` being the delta update's `$source`) — this plugin runs
+upstream of the server's own source-priority resolution, so a path fed by more than one device is
+seen here as each source's raw, independently-noisy stream, interleaved. Keying state per-source
+stops one source's readings from being compared against another's — otherwise a legitimate switch
+from a poor fix to a better one can look like the vessel teleporting relative to whichever source
+happened to report last:
 
 - `lastAccepted` — the last raw value actually forwarded, plus its timestamp. Movement is always
   checked against this _raw_ value, not the rounded one, with a `1.5×` resolution margin

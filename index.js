@@ -150,15 +150,17 @@ module.exports = function (app) {
       const isSelf = delta.context === app.selfContext;
 
       delta.updates = delta.updates.filter((update) => {
+        const source = update.$source || update.source?.label || "unknown";
         if (update.values && update.values.length > 0) {
           update.values = update.values.filter((pv) => {
-            const result = filter.process(delta.context, pv.path, pv.value, isSelf);
+            const result = filter.process(delta.context, pv.path, pv.value, isSelf, source);
             if (!result.keep) {
               if (result.reason === "spike") {
-                const { from, to, distanceM, impliedSpeedMs } = result.spike;
+                const { from, to, fromSource, toSource, distanceM, impliedSpeedMs } = result.spike;
                 app.debug(
                   `squelch: rejected GPS spike on ${delta.context}:${pv.path} — ` +
-                    `(${from.latitude}, ${from.longitude}) -> (${to.latitude}, ${to.longitude}), ` +
+                    `(${from.latitude}, ${from.longitude}) [${fromSource || "unknown"}] -> ` +
+                    `(${to.latitude}, ${to.longitude}) [${toSource || "unknown"}], ` +
                     `${distanceM.toFixed(1)}m implying ${impliedSpeedMs.toFixed(2)}m/s`,
                 );
               }
