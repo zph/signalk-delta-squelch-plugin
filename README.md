@@ -97,6 +97,18 @@ target moving fast isn't an anomaly just because it isn't us — and it only
 addresses large, single-fix jumps. It does **not** fix slow GPS wander at
 anchor - these are genuinely different problems: a spike is one bad sample surrounded by good ones, wander is every sample being slightly wrong in a way no single-sample check can detect.
 
+All squelch state (position or otherwise) is tracked per `$source` as well as
+per path. This plugin runs upstream of the server's own source-priority
+resolution, so a path fed by more than one device (e.g. a chartplotter GPS
+and an AIS transceiver's own GPS both reporting `navigation.position`) is
+seen here as each source's raw, independent stream — never compared against
+each other. Without that, a legitimate correction from a poorer fix to a
+better one (or a source switch driven by your SignalK priority rules) could
+look like the boat teleporting relative to whichever source reported last,
+and get wrongly rejected as a spike. The rejected-spike debug log includes
+both the accepted and rejected fix's source, to help diagnose which device
+is actually the noisy one.
+
 ## Configuration
 
 All of the above is configurable from the plugin's config screen:

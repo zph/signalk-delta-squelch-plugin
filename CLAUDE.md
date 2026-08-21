@@ -31,7 +31,7 @@ is a thin wire-up between the SignalK plugin API and that logic.
 index.js
   → app.registerDeltaInputHandler(...)   — runs before the server applies/broadcasts any delta
     → for each update.values[] entry:
-      → lib/filter.js: SquelchFilter#process(context, path, value, isSelf)
+      → lib/filter.js: SquelchFilter#process(context, path, value, isSelf, source)
         → lib/categorize.js: categorize(path)   — auto-detect category, or use a path override
         → lib/geo.js: haversineMeters / roundTo / knotsToMs
       → returns { keep, value } — drop the value, or replace it with its rounded form
