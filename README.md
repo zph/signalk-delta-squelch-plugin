@@ -84,7 +84,7 @@ still gets the same protection as numeric ones.
 This applies to any path emitting a string or boolean value; there's no
 category to auto-detect since there are no units or rounding step involved.
 
-### Position outlier rejection (anchor-watch GPS spikes)
+### Position outlier rejection (anchor-watch GNSS spikes)
 
 A single position implying a speed above your configured maximum (with a
 safety margin) is treated as a GPS glitch and dropped — the boat stays at its

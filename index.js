@@ -139,7 +139,7 @@ module.exports = function (app) {
       const { total, suppressed, spikes } = filter.takeStats();
       const pct = total > 0 ? ((suppressed / total) * 100).toFixed(1) : "0.0";
       app.debug(
-        `squelch: suppressed ${suppressed}/${total} value(s) (${pct}%) in the past hour, including ${spikes} rejected GPS spike(s)`,
+        `squelch: suppressed ${suppressed}/${total} value(s) (${pct}%) in the past hour, including ${spikes} rejected GNSS spike(s)`,
       );
     }, STATS_INTERVAL_MS);
     statsTimer.unref?.();
@@ -160,8 +160,9 @@ module.exports = function (app) {
             if (!result.keep) {
               if (result.reason === "spike") {
                 const { from, to, fromSource, toSource, distanceM, impliedSpeedMs } = result.spike;
+                const loggedContext = isSelf ? "self" : delta.context;
                 app.debug(
-                  `squelch: rejected GPS spike on ${delta.context}:${pv.path} — ` +
+                  `squelch: rejected GNSS spike on ${loggedContext}:${pv.path} — ` +
                     `(${from.latitude}, ${from.longitude}) [${fromSource || "unknown"}] -> ` +
                     `(${to.latitude}, ${to.longitude}) [${toSource || "unknown"}], ` +
                     `${distanceM.toFixed(1)}m implying ${impliedSpeedMs.toFixed(2)}m/s`,

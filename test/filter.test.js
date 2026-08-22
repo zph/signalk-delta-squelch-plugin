@@ -185,12 +185,12 @@ describe("SquelchFilter — position rounding", () => {
   });
 });
 
-describe("SquelchFilter — position outlier (anchor-watch GPS spike) rejection", () => {
+describe("SquelchFilter — position outlier (anchor-watch GNSS spike) rejection", () => {
   const anchored = { latitude: 55.772581, longitude: -4.857908 };
   // ~1.1km away — reachable only at an unrealistic speed within a few seconds.
   const spike = { latitude: 55.7826, longitude: -4.857908 };
 
-  test("rejects a single GPS spike implying an unrealistic speed", () => {
+  test("rejects a single GNSS spike implying an unrealistic speed", () => {
     const clock = makeClock(0);
     const filter = new SquelchFilter({}, clock);
     filter.process("vessels.self", "navigation.position", anchored, true);
@@ -329,7 +329,7 @@ describe("SquelchFilter — stats", () => {
     assert.deepEqual(filter.takeStats(), { total: 2, suppressed: 1, spikes: 0 });
   });
 
-  test("counts a rejected GPS spike as both suppressed and a spike", () => {
+  test("counts a rejected GNSS spike as both suppressed and a spike", () => {
     const clock = makeClock(0);
     const filter = new SquelchFilter({}, clock);
     const anchored = { latitude: 55.772581, longitude: -4.857908 };
