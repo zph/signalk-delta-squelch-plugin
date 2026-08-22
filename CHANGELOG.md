@@ -2,6 +2,10 @@
 
 All notable changes to this plugin are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.2]
+
+- Log squelch as a percentage of total delta volume over period
+
 ## [0.4.1]
 
 - Improved handling of GNSS position spikes

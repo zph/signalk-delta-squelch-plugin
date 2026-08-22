@@ -136,8 +136,11 @@ module.exports = function (app) {
     filter = new SquelchFilter(options || {});
 
     statsTimer = setInterval(() => {
-      const { suppressed, spikes } = filter.takeStats();
-      app.debug(`squelch: suppressed ${suppressed} value(s) in the past hour, including ${spikes} rejected GPS spike(s)`);
+      const { total, suppressed, spikes } = filter.takeStats();
+      const pct = total > 0 ? ((suppressed / total) * 100).toFixed(1) : "0.0";
+      app.debug(
+        `squelch: suppressed ${suppressed}/${total} value(s) (${pct}%) in the past hour, including ${spikes} rejected GPS spike(s)`,
+      );
     }, STATS_INTERVAL_MS);
     statsTimer.unref?.();
 

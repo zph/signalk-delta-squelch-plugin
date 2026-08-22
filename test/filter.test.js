@@ -141,7 +141,7 @@ describe("SquelchFilter — text/boolean state values", () => {
     filter.process("vessels.self", "navigation.state", "sailing", true);
     clock.advance(1000);
     filter.process("vessels.self", "navigation.state", "sailing", true); // suppressed
-    assert.deepEqual(filter.takeStats(), { suppressed: 1, spikes: 0 });
+    assert.deepEqual(filter.takeStats(), { total: 2, suppressed: 1, spikes: 0 });
   });
 });
 
@@ -317,7 +317,7 @@ describe("SquelchFilter — stats", () => {
     const clock = makeClock(0);
     const filter = new SquelchFilter({}, clock);
     filter.process("vessels.self", "environment.water.temperature", 288.0, true);
-    assert.deepEqual(filter.takeStats(), { suppressed: 0, spikes: 0 });
+    assert.deepEqual(filter.takeStats(), { total: 1, suppressed: 0, spikes: 0 });
   });
 
   test("counts squelched scalar and position readings as suppressed", () => {
@@ -326,7 +326,7 @@ describe("SquelchFilter — stats", () => {
     filter.process("vessels.self", "environment.water.temperature", 288.0, true);
     clock.advance(1000);
     filter.process("vessels.self", "environment.water.temperature", 288.01, true); // suppressed
-    assert.deepEqual(filter.takeStats(), { suppressed: 1, spikes: 0 });
+    assert.deepEqual(filter.takeStats(), { total: 2, suppressed: 1, spikes: 0 });
   });
 
   test("counts a rejected GPS spike as both suppressed and a spike", () => {
@@ -337,7 +337,7 @@ describe("SquelchFilter — stats", () => {
     filter.process("vessels.self", "navigation.position", anchored, true);
     clock.advance(1000);
     filter.process("vessels.self", "navigation.position", spike, true); // rejected spike
-    assert.deepEqual(filter.takeStats(), { suppressed: 1, spikes: 1 });
+    assert.deepEqual(filter.takeStats(), { total: 2, suppressed: 1, spikes: 1 });
   });
 
   test("resets counts after being read", () => {
@@ -347,6 +347,6 @@ describe("SquelchFilter — stats", () => {
     clock.advance(1000);
     filter.process("vessels.self", "environment.water.temperature", 288.01, true);
     filter.takeStats();
-    assert.deepEqual(filter.takeStats(), { suppressed: 0, spikes: 0 });
+    assert.deepEqual(filter.takeStats(), { total: 0, suppressed: 0, spikes: 0 });
   });
 });
