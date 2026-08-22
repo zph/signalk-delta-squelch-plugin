@@ -204,14 +204,41 @@ describe("SquelchFilter — position outlier (anchor-watch GNSS spike) rejection
     // apart in processing time (multiple sentences/sources in a burst, not
     // two genuinely independent fixes), 0.4m apart — naively dividing gives
     // an impossible ~365m/s "spike" for what's actually ordinary wander.
+    // minDistanceM is disabled here so this exercises the elapsed-time floor
+    // specifically, not the minimum-distance exemption covered below.
     const clock = makeClock(0);
-    const filter = new SquelchFilter({}, clock);
+    const filter = new SquelchFilter({ positionOutlier: { minDistanceM: 0 } }, clock);
     filter.process("vessels.self", "navigation.position", anchored, true);
     clock.advance(1); // 1ms — far below any real GPS/AIS update interval
     const nearby = { latitude: anchored.latitude + 0.0000036, longitude: anchored.longitude }; // ~0.4m away
     const result = filter.process("vessels.self", "navigation.position", nearby, true);
     assert.equal(result.keep, true);
     assert.notEqual(result.reason, "spike");
+  });
+
+  test("never rejects a jump under minDistanceM, even if it implies an unrealistic speed", () => {
+    // 1.5m in 1ms implies ~1500m/s, far past the default speed threshold —
+    // but at that scale it's GNSS scatter, not a glitch, and the default
+    // minDistanceM (2m) exempts it so the "cocked hat" of fixes isn't thinned out.
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({}, clock);
+    filter.process("vessels.self", "navigation.position", anchored, true);
+    clock.advance(1);
+    const nearby = { latitude: anchored.latitude + 0.0000135, longitude: anchored.longitude }; // ~1.5m away
+    const result = filter.process("vessels.self", "navigation.position", nearby, true);
+    assert.equal(result.keep, true);
+    assert.notEqual(result.reason, "spike");
+  });
+
+  test("minDistanceM is configurable — a smaller value lets a below-default jump be rejected as a spike", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({ positionOutlier: { minDistanceM: 1 } }, clock);
+    filter.process("vessels.self", "navigation.position", anchored, true);
+    clock.advance(1);
+    const nearby = { latitude: anchored.latitude + 0.0000135, longitude: anchored.longitude }; // ~1.5m away
+    const result = filter.process("vessels.self", "navigation.position", nearby, true);
+    assert.equal(result.keep, false);
+    assert.equal(result.reason, "spike");
   });
 
   test("accepts the jump once enough consecutive readings confirm it", () => {

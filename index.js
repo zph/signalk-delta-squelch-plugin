@@ -76,6 +76,16 @@ module.exports = function (app) {
             minimum: 0,
           },
           speedMarginMultiplier: { type: "number", title: "Safety margin multiplier", default: 1.5, minimum: 1 },
+          minDistanceM: {
+            type: "number",
+            title: "Minimum spike distance (meters)",
+            description:
+              "A jump smaller than this is never rejected as a spike, no matter how fast it implies the vessel moved — it's ordinary " +
+              "GNSS scatter, and that variation is what lets a 'cocked hat' of recent fixes average out to a better position than any " +
+              "single fix.",
+            default: 2,
+            minimum: 0,
+          },
           confirmationCount: {
             type: "integer",
             title: "Consecutive confirming samples before accepting a jump",
@@ -157,12 +167,12 @@ module.exports = function (app) {
             const result = filter.process(delta.context, pv.path, pv.value, isSelf, source);
             if (!result.keep) {
               if (result.reason === "spike") {
-                const { from, to, source: spikeSource, distanceM, impliedSpeedMs } = result.spike;
+                const { from, to, source: spikeSource, distanceM, impliedSpeedMs, elapsedS } = result.spike;
                 const loggedContext = isSelf ? "self" : delta.context;
                 app.debug(
                   `squelch: rejected GNSS spike on ${loggedContext}:${pv.path} [${spikeSource || "unknown"}] — ` +
-                    `(${from.latitude}, ${from.longitude}) -> (${to.latitude}, ${to.longitude}), ` +
-                    `${distanceM.toFixed(1)}m implying ${impliedSpeedMs.toFixed(2)}m/s`,
+                    `(${from.latitude}, ${from.longitude}) -> (${to.latitude}, ${to.longitude}) ` +
+                    `over ${elapsedS.toFixed(2)}s, ${distanceM.toFixed(1)}m implying ${impliedSpeedMs.toFixed(2)}m/s`,
                 );
               }
               return false;

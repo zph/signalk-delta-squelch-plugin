@@ -8,9 +8,9 @@
 [![boat tech directory](https://boat-tech-directory.rhizomatics.org.uk/images/badge.svg)](https://boat-tech-directory.rhizomatics.org.uk)
 
 Cuts noisy, redundant SignalK deltas at the source, before they reach the full
-data model, other plugins, or connected clients.
+data model, other plugins, or connected clients. Reduce size of stored data both by removing pointless changes, and better efficiency for analytic column-store databases.
 
-BETA, use at own risk, incorrect configuration for your boat's systems may mean GNSS (e.g. GPS) positions on plotters or anchor trackers are stale, and likewise for depth, tide or wind data.
+Use at own risk, incorrect configuration for your boat's systems may mean GNSS (e.g. GPS) positions on plotters or anchor trackers are stale, and likewise for depth, tide or wind data.
 
 ## The problem
 
@@ -45,8 +45,10 @@ or forwards it to anyone. For each value on a recognised path, it:
    number of consecutive readings in a row (10 by default).
 4. Forwards a **heartbeat** at a configurable interval even with no
    change, so nothing downstream mistakes a quiet source for a dead one.
-5. Optionally **rejects GPS position spikes** — the classic anchor-watch
-   false-alarm cause, where a single bad fix implies the boat teleported.
+5. Optionally **rejects GNSS position spikes** — the classic anchor-watch
+   false-alarm cause, where a single bad fix implies the boat teleported —
+   while always letting through small jumps that are just ordinary GNSS
+   scatter, not glitches.
 
 Everything is gated on the _raw_ value with a hysteresis margin (1.5× the
 rounding step), not the rounded value — a reading sitting right on a rounding
@@ -87,27 +89,36 @@ category to auto-detect since there are no units or rounding step involved.
 ### Position outlier rejection (anchor-watch GNSS spikes)
 
 A single position implying a speed above your configured maximum (with a
-safety margin) is treated as a GPS glitch and dropped — the boat stays at its
+safety margin) is treated as a GNSS glitch and dropped — the boat stays at its
 last good fix. If several readings in a row _agree_ on the new location
-within a short window, it's accepted as real movement (e.g. after a GPS
+within a short window, it's accepted as real movement (e.g. after a GNSS
 dropout), not a one-off spike.
+
+A jump smaller than **minimum spike distance** (2m by default) is never
+rejected, no matter how fast it implies the boat moved. At that scale it's
+ordinary GNSS scatter, not a glitch — and that scatter is useful: a "cocked
+hat" of nearby fixes spread over time can average out to a better position
+estimate than trusting any single fix, so it's worth keeping rather than
+squelching away.
 
 This only applies to the vessel's own position (`app.selfContext`) — an AIS
 target moving fast isn't an anomaly just because it isn't us — and it only
-addresses large, single-fix jumps. It does **not** fix slow GPS wander at
+addresses large, single-fix jumps. It does **not** fix slow GNSS wander at
 anchor - these are genuinely different problems: a spike is one bad sample surrounded by good ones, wander is every sample being slightly wrong in a way no single-sample check can detect.
 
 All squelch state (position or otherwise) is tracked per `$source` as well as
 per path. This plugin runs upstream of the server's own source-priority
-resolution, so a path fed by more than one device (e.g. a chartplotter GPS
-and an AIS transceiver's own GPS both reporting `navigation.position`) is
+resolution, so a path fed by more than one device (e.g. a chartplotter GNSS
+and an AIS transceiver's own GNSS both reporting `navigation.position`) is
 seen here as each source's raw, independent stream — never compared against
 each other. Without that, a legitimate correction from a poorer fix to a
 better one (or a source switch driven by your SignalK priority rules) could
 look like the boat teleporting relative to whichever source reported last,
-and get wrongly rejected as a spike. The rejected-spike debug log includes
-both the accepted and rejected fix's source, to help diagnose which device
-is actually the noisy one.
+and get wrongly rejected as a spike. The rejected-spike debug log names the
+context (`self` for the vessel's own position), path, and source together,
+along with the two positions, the time elapsed between them, and the
+distance and implied speed that triggered the rejection — enough to tell
+which device is actually the noisy one.
 
 ## Configuration
 
@@ -121,7 +132,8 @@ All of the above is configurable from the plugin's config screen:
   heading, height, voltage, pressure, humidity (native SignalK SI units), and
   position (lat/lon in degrees, settable independently).
 - **Position outlier settings** — enable/disable, max vessel speed (knots),
-  safety margin multiplier, confirmation count, and confirmation window.
+  safety margin multiplier, minimum spike distance (2m default — jumps below
+  this are never rejected), confirmation count, and confirmation window.
 - **Path-specific overrides** — add a path to set its own resolution (or
   lat/lon resolution, for position-shaped paths), category, heartbeat, or
   unchanging value threshold, overriding the category default or handling a

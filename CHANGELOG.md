@@ -2,6 +2,20 @@
 
 All notable changes to this plugin are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.6]
+
+- Correct missing changed from 0.4.5
+
+## [0.4.5]
+
+- Apply a configurable minimum distance for rejecting GNSS spikes
+  - Defaults to 2m
+  - Can be configured to anything, including down to 0m, in the plugin config
+
+## [0.4.4]
+
+- When logging a GNSS spike, include the elapsed time between the two positions
+
 ## [0.4.3]
 
 - Refer to `GNSS spikes` rather than `GPS Spikes` since could be Galileo, Glonass, Beidou etc
