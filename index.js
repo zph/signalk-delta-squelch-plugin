@@ -157,12 +157,11 @@ module.exports = function (app) {
             const result = filter.process(delta.context, pv.path, pv.value, isSelf, source);
             if (!result.keep) {
               if (result.reason === "spike") {
-                const { from, to, fromSource, toSource, distanceM, impliedSpeedMs } = result.spike;
+                const { from, to, source: spikeSource, distanceM, impliedSpeedMs } = result.spike;
                 const loggedContext = isSelf ? "self" : delta.context;
                 app.debug(
-                  `squelch: rejected GNSS spike on ${loggedContext}:${pv.path} — ` +
-                    `(${from.latitude}, ${from.longitude}) [${fromSource || "unknown"}] -> ` +
-                    `(${to.latitude}, ${to.longitude}) [${toSource || "unknown"}], ` +
+                  `squelch: rejected GNSS spike on ${loggedContext}:${pv.path} [${spikeSource || "unknown"}] — ` +
+                    `(${from.latitude}, ${from.longitude}) -> (${to.latitude}, ${to.longitude}), ` +
                     `${distanceM.toFixed(1)}m implying ${impliedSpeedMs.toFixed(2)}m/s`,
                 );
               }

@@ -257,14 +257,13 @@ describe("SquelchFilter — position outlier (anchor-watch GNSS spike) rejection
     assert.ok(result.spike.impliedSpeedMs > 100);
   });
 
-  test("reports the source of both the accepted fix and the rejected spike", () => {
+  test("reports the source of the rejected spike", () => {
     const clock = makeClock(0);
     const filter = new SquelchFilter({}, clock);
     filter.process("vessels.self", "navigation.position", anchored, true, "garmin-gps.1");
     clock.advance(1000);
     const result = filter.process("vessels.self", "navigation.position", spike, true, "garmin-gps.1");
-    assert.equal(result.spike.fromSource, "garmin-gps.1");
-    assert.equal(result.spike.toSource, "garmin-gps.1");
+    assert.equal(result.spike.source, "garmin-gps.1");
   });
 });
 
