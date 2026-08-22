@@ -61,17 +61,17 @@ module.exports = function (app) {
       },
       positionOutlier: {
         type: "object",
-        title: "Position outlier rejection (anchor-watch GPS glitch guard)",
+        title: "Position outlier rejection (anchor-watch GNSS glitch guard)",
         description:
           "Rejects a single own-vessel position spike implying an unrealistic speed. Tackles the classic anchor-watch false-alarm " +
-          "problem; it does not address slow GPS wander at rest.",
+          "problem; it does not address slow GNSS wander at rest.",
         properties: {
           enabled: { type: "boolean", title: "Enabled", default: true },
           maxVesselSpeedKnots: {
             type: "number",
             title: "Max realistic vessel speed (knots)",
             description:
-              "Set above your vessel's actual top speed. A position implying faster travel than this is treated as a GPS glitch.",
+              "Set above your vessel's actual top speed. A position implying faster travel than this is treated as a GNSS glitch.",
             default: 25,
             minimum: 0,
           },
