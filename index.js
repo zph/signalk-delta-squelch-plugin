@@ -138,9 +138,7 @@ module.exports = function (app) {
     statsTimer = setInterval(() => {
       const { total, suppressed, spikes } = filter.takeStats();
       const pct = total > 0 ? ((suppressed / total) * 100).toFixed(1) : "0.0";
-      app.debug(
-        `squelch: suppressed ${suppressed}/${total} value(s) (${pct}%) in the past hour, including ${spikes} rejected GNSS spike(s)`,
-      );
+      app.debug(`squelch: suppressed ${suppressed}/${total} value(s) (${pct}%) in the past hour, ${spikes} rejected GNSS spike(s)`);
     }, STATS_INTERVAL_MS);
     statsTimer.unref?.();
 

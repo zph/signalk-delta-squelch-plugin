@@ -1,6 +1,6 @@
 {
   "name": "@rhizomatics/signalk-delta-squelch-plugin",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Clean up noisy SignalK deltas by rounding to sensor's real precision and throttling insignificant or unchanging deltas, reducing compute and storage usage and false anchor alerts.",
   "keywords": [
     "anchor-watch",
