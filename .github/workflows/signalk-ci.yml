@@ -33,3 +33,15 @@ jobs:
         with:
           files: coverage/lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  integration:
+    name: Signal K integration regressions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run test:integration

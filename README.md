@@ -1,154 +1,152 @@
 # signalk-delta-squelch-plugin
 
-[![npm version](https://img.shields.io/npm/v/@rhizomatics/signalk-delta-squelch-plugin.svg)](https://www.npmjs.com/package/@rhizomatics/signalk-delta-squelch-plugin)
-[![npm downloads](https://img.shields.io/npm/dm/@rhizomatics/signalk-delta-squelch-plugin.svg)](https://www.npmjs.com/package/@rhizomatics/signalk-delta-squelch-plugin)
-[![SignalK Plugin CI](https://github.com/rhizomatics/signalk-delta-squelch-plugin/actions/workflows/signalk-ci.yml/badge.svg)](https://github.com/rhizomatics/signalk-delta-squelch-plugin/actions/workflows/signalk-ci.yml)
-![code style: oxfmt](https://img.shields.io/badge/code_style-oxfmt-blue.svg)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/rhizomatics/signalk-delta-squelch-plugin/blob/main/LICENSE)
-[![boat tech directory](https://boat-tech-directory.rhizomatics.org.uk/images/badge.svg)](https://boat-tech-directory.rhizomatics.org.uk)
+> This is a safety-focused fork of
+> [`rhizomatics/signalk-delta-squelch-plugin`](https://github.com/rhizomatics/signalk-delta-squelch-plugin).
+> Many thanks to Jey Burrows and the upstream contributors for creating and
+> sharing the original plugin. I am happy to upstream useful changes; this fork
+> is where I am iterating to learn which behavior is safe and practical aboard.
 
-Cuts noisy, redundant SignalK deltas at the source, before they reach the full
-data model, other plugins, or connected clients. Reduce size of stored data both by removing pointless changes, and better efficiency for analytic column-store databases.
+[![Signal K Plugin CI](https://github.com/zph/signalk-delta-squelch-plugin/actions/workflows/signalk-ci.yml/badge.svg)](https://github.com/zph/signalk-delta-squelch-plugin/actions/workflows/signalk-ci.yml)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Use at own risk, incorrect configuration for your boat's systems may mean GNSS (e.g. GPS) positions on plotters or anchor trackers are stale, and likewise for depth, tide or wind data.
+Publishes a lower-noise derived Signal K stream while preserving the original
+sensor data. Numeric measurements are quantized to configurable real-world
+resolution, repeated state values are thinned, and own-vessel GNSS spikes can
+be rejected from the derived stream.
 
-## The problem
+## Safety model
 
-Sources like GPS receivers emit far more precision, and far more frequent
-updates (10Hz for modern ones), than the physical measurement actually supports. At anchor, a typical
-GPS fix wanders by several metres from multipath and receiver noise alone —
-producing a stream of deltas like this example for a berthed boat:
+This fork does **not** use `registerDeltaInputHandler` and does not delete or
+rewrite incoming deltas. Raw values still reach Signal K's cache, source
+priority engine, alarms, derived-data plugins, historians, and clients.
 
-```json
-{"path": "navigation.position", "value": {"latitude": 54.372581233333334, "longitude": -4.907908233333333}}
-{"path": "navigation.position", "value": {"latitude": 54.3725812,         "longitude": -4.907908233333333}}
-{"path": "navigation.position", "value": {"latitude": 54.3725811,         "longitude": -4.9079082499999995}}
+The plugin subscribes to Signal K's preferred raw values while excluding its
+own output, then publishes accepted values under the separate source:
+
+```text
+signalk-delta-squelch-plugin
 ```
 
-None of that movement is real; all of it costs CPU, eMMC and SD Card wear, and power to generate, log, and re-broadcast — multiplied by every plugin and client subscribed to the path. Throttling a single websocket subscription doesn't help: the noise is still generated, still processed by every other consumer, and often still written to disk.
+This requires Signal K 2.31.1 or newer, whose plugin subscriptions support
+`excludeSelf`. The callback also rejects its own source defensively.
 
-There's an additional benefit if using a column-oriented data store to archive data, such as Parquet, InfluxDB or QuestDB - these databases are much more efficient where there are fewer unique values to store (the 'cardinality') so trimming off the false millimetre position resolution can save on CPU and disk space both when writing data and later querying.
+Nothing uses the derived stream automatically. To display it as the current
+value, rank `signalk-delta-squelch-plugin` above the physical sources for the
+specific paths you want filtered. The plugin's self-excluding subscription
+continues to receive the preferred physical source, so this does not create a
+feedback loop.
 
-And if you're watching an anchor tracker, there's a little less meaningless clutter on the boat tracks.
+Keep raw sources available to anchor alarms, forensic logging, and statistical
+aggregation until the configuration has been validated with recorded boat
+data. A sample-count mean of an intentionally thinned derived stream is not the
+same as the mean of the raw samples.
 
-## What this plugin does
+## What it does
 
-It registers a [`registerDeltaInputHandler`](https://demo.signalk.org/documentation/develop/plugins/server_plugin_api.html) — a hook that runs _before_ the server applies a delta to the full data model
-or forwards it to anyone. For each value on a recognised path, it:
+For supported values, the derived stream:
 
-1. **Rounds** the value to a resolution matching the sensor's real-world
-   accuracy (configurable per category, or per path).
-2. **Removes** updates that don't move past that resolution, so consumers
-   see clean, sensible numbers arriving only when something actually changed.
-3. **Squelches unchanging text/boolean values** — notification, state, and
-   switch paths — once the same value has been seen for a configurable
-   number of consecutive readings in a row (10 by default).
-4. Forwards a **heartbeat** at a configurable interval even with no
-   change, so nothing downstream mistakes a quiet source for a dead one.
-5. Optionally **rejects GNSS position spikes** — the classic anchor-watch
-   false-alarm cause, where a single bad fix implies the boat teleported —
-   while always letting through small jumps that are just ordinary GNSS
-   scatter, not glitches.
+1. Quantizes numeric measurements to a configured resolution.
+2. Emits a changed numeric value once it moves one full resolution step from
+   the displayed value. This avoids boundary chatter while keeping maximum lag
+   below one step.
+3. Thins repeated strings and booleans after a configurable count.
+4. Republishes an unchanged value after the refresh interval **only when a new
+   raw sample arrives**. It never fabricates a heartbeat after a sensor stops.
+5. Rejects an implausible own-vessel position jump until consecutive fixes
+   confirm the new location.
 
-Everything is gated on the _raw_ value with a hysteresis margin (1.5× the
-rounding step), not the rounded value — a reading sitting right on a rounding
-boundary won't flip back and forth every sample.
+Position output preserves every property in the input object, including
+`altitude`; only latitude and longitude are quantized.
 
-### Categories and defaults
+GNSS speed checks use the latest plausible received fix, not the last emitted
+fix. Suppressing stable positions therefore cannot make the detector weaker as
+time passes.
 
-| Category      | Matches (auto-detected)                                      | Default resolution           |
-| ------------- | ------------------------------------------------------------ | ---------------------------- |
-| `position`    | `navigation.position` only                                   | 0.000001° lat & lon (~0.11m) |
-| `temperature` | any path containing "temperature"                            | 0.01 K                       |
-| `velocity`    | any path containing "speed"                                  | 0.05 m/s (~0.1 knot)         |
-| `heading`     | heading / course / angle / direction / variation / deviation | 0.01745 rad (~1°)            |
-| `height`      | depth / height / altitude / draft / freeboard                | 0.1 m                        |
-| `voltage`     | any path containing "voltage"                                | 0.1 V                        |
-| `pressure`    | any path containing "pressure"                               | 100 Pa (1 mbar)              |
-| `humidity`    | any path containing "humidity"                               | 0.001 (0.1%)                 |
+Inactive filter state expires after one hour by default. A separate maximum
+entry count bounds retained state even on servers that see many AIS contexts.
 
-Any path that doesn't match one of these is passed through untouched unless
-you add an explicit override.
+## Unit-safe categories
 
-For older GPS antenna, without modern L5 and SBAS for high resolution, `0.00001` may be more appropriate, the default setting covers modern systems that have <1m resolution.
+Signal K metadata units take precedence over path names. An explicit path
+override takes precedence over both. If metadata is unavailable, only
+conservative leaf-name and well-known namespace rules are used.
 
-### Text and boolean values
+| Category      | Signal K unit             |           Default resolution |
+| ------------- | ------------------------- | ---------------------------: |
+| Position      | position object           | 0.000001° latitude/longitude |
+| Temperature   | `K`                       |                       0.01 K |
+| Velocity      | `m/s`                     |                     0.05 m/s |
+| Heading/angle | `rad`                     |                  0.01745 rad |
+| Height/depth  | `m`                       |                        0.1 m |
+| Voltage       | `V`                       |                        0.1 V |
+| Pressure      | `Pa`                      |                       100 Pa |
+| Humidity      | `ratio` on humidity paths |                        0.001 |
 
-Paths whose value is a string or boolean (notification states, autopilot
-state, switch positions, ...) have no physical resolution to round to, so
-they're squelched by exact-value repetition instead: a value is only dropped
-once it's been seen unchanged for `unchangingCountThreshold` consecutive
-readings in a row (10 by default). Earlier repeats, any change of value, and
-the heartbeat are always forwarded — so a path that only ever emits on an
-actual change is never squelched at all, and a flappy or rarely-updated path
-still gets the same protection as numeric ones.
+Compound names no longer determine units. For example,
+`performance.polarSpeedRatio` is not treated as velocity, and
+`navigation.magneticVariationAgeOfService` is not treated as an angle.
 
-This applies to any path emitting a string or boolean value; there's no
-category to auto-detect since there are no units or rounding step involved.
+## GNSS spike rejection
 
-### Position outlier rejection (anchor-watch GNSS spikes)
+A position that implies more than the configured vessel speed and safety
+margin is withheld from the derived stream. If the configured number of
+consecutive fixes cluster at the new location, the move is accepted as real.
+Small jumps below `minDistanceM` are always allowed.
 
-A single position implying a speed above your configured maximum (with a
-safety margin) is treated as a GNSS glitch and dropped — the boat stays at its
-last good fix. If several readings in a row _agree_ on the new location
-within a short window, it's accepted as real movement (e.g. after a GNSS
-dropout), not a one-off spike.
+Rejection is limited to `app.selfContext`; fast AIS targets are not treated as
+own-vessel glitches. State is isolated by input source so the first position
+from a newly selected GNSS receiver is never compared with another receiver.
 
-A jump smaller than **minimum spike distance** (2m by default) is never
-rejected, no matter how fast it implies the boat moved. At that scale it's
-ordinary GNSS scatter, not a glitch — and that scatter is useful: a "cocked
-hat" of nearby fixes spread over time can average out to a better position
-estimate than trusting any single fix, so it's worth keeping rather than
-squelching away.
-
-This only applies to the vessel's own position (`app.selfContext`) — an AIS
-target moving fast isn't an anomaly just because it isn't us — and it only
-addresses large, single-fix jumps. It does **not** fix slow GNSS wander at
-anchor - these are genuinely different problems: a spike is one bad sample surrounded by good ones, wander is every sample being slightly wrong in a way no single-sample check can detect.
-
-All squelch state (position or otherwise) is tracked per `$source` as well as
-per path. This plugin runs upstream of the server's own source-priority
-resolution, so a path fed by more than one device (e.g. a chartplotter GNSS
-and an AIS transceiver's own GNSS both reporting `navigation.position`) is
-seen here as each source's raw, independent stream — never compared against
-each other. Without that, a legitimate correction from a poorer fix to a
-better one (or a source switch driven by your SignalK priority rules) could
-look like the boat teleporting relative to whichever source reported last,
-and get wrongly rejected as a spike. The rejected-spike debug log names the
-context (`self` for the vessel's own position), path, and source together,
-along with the two positions, the time elapsed between them, and the
-distance and implied speed that triggered the rejection — enough to tell
-which device is actually the noisy one.
+This protects only the derived output. The original position remains available
+under its physical source for diagnostics and safety consumers.
 
 ## Configuration
 
-All of the above is configurable from the plugin's config screen:
+- **Maximum output silence while input continues**: defaults to 5 seconds and
+  can be overridden per path. Keep it shorter than the applicable source
+  priority failover timeout.
+- **Unchanging value threshold**: repeated string/boolean values forwarded
+  before thinning starts; defaults to 10.
+- **Category resolution**: quantization steps in native Signal K SI units.
+- **Position resolution**: independent latitude and longitude steps.
+- **Position outlier settings**: maximum vessel speed, margin, minimum jump,
+  confirmation count, and confirmation window.
+- **Inactive state retention**: expiry for context/path/source state; defaults
+  to 3600 seconds.
+- **Maximum tracked state entries**: least-recently-seen entries are evicted at
+  this bound; defaults to 10,000.
+- **Path overrides**: explicit category, resolution, refresh interval, or state
+  repetition count.
 
-- **Heartbeat interval** — global default, overridable per path.
-- **Unchanging value threshold** — global default (10) for how many
-  consecutive identical text/boolean readings are forwarded before
-  squelching kicks in, overridable per path.
-- **Default rounding resolution per category** — temperature, velocity,
-  heading, height, voltage, pressure, humidity (native SignalK SI units), and
-  position (lat/lon in degrees, settable independently).
-- **Position outlier settings** — enable/disable, max vessel speed (knots),
-  safety margin multiplier, minimum spike distance (2m default — jumps below
-  this are never rejected), confirmation count, and confirmation window.
-- **Path-specific overrides** — add a path to set its own resolution (or
-  lat/lon resolution, for position-shaped paths), category, heartbeat, or
-  unchanging value threshold, overriding the category default or handling a
-  path that isn't auto-recognised.
+## Install this fork
 
-## Install
-
-Install from the SignalK admin UI **Apps & Plugins** **Store**, or:
+Until the changes are published under a distinct npm package, install the fork
+from GitHub in the Signal K settings directory:
 
 ```bash
-cd ~/.signalk && npm install @rhizomatics/signalk-delta-squelch-plugin
+cd ~/.signalk
+npm install github:zph/signalk-delta-squelch-plugin
 ```
 
-Then enable it under **Apps & Plugins** → **Configuration*** → **Delta Squelch**.
+Enable **Delta Squelch** under **Apps & Plugins → Configuration**, then add its
+derived source to source priority only for paths you have validated.
+
+## Verification
+
+```bash
+npm ci
+npm test
+npm run test:integration
+npm run test:coverage
+npm run lint
+npm run fmt:check
+```
+
+The test suite covers raw-data preservation, derived-source publication,
+position field preservation, recent-fix GNSS checks, conservative unit
+classification, bounded state, and quantization lag.
 
 ## License
 
-Apache-2.0
+Apache-2.0. See [LICENSE](LICENSE) and the upstream project for attribution and
+history.

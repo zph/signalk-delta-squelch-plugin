@@ -2,6 +2,22 @@
 
 All notable changes to this plugin are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.0-zph.1]
+
+- Preserve the raw Signal K stream and publish filtered values under a separate
+  `signalk-delta-squelch-plugin` source.
+- Subscribe to preferred physical sources with the plugin's own output
+  excluded, preventing feedback when the derived source is ranked first.
+- Preserve all position fields, including altitude.
+- Check GNSS jumps against the latest plausible received fix.
+- Leave notification paths exclusively on their authoritative input sources.
+- Use Signal K metadata units and conservative fallback path matching instead
+  of broad keyword inference.
+- Bound filter state by inactivity age and least-recently-seen entry count.
+- Replace the 1.5-step/raw-value hysteresis with a displayed-value quantizer
+  whose lag stays below one configured step.
+- Correct refresh and historian/cardinality claims in the README.
+
 ## [0.4.6]
 
 - Correct missing changed from 0.4.5

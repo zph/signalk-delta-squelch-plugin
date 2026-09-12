@@ -8,8 +8,7 @@ module.exports = function (app) {
     name: "Delta Squelch",
     description:
       "Rounds noisy SignalK values (position, temperature, velocity, heading, height, voltage, pressure, humidity) to their sensor's real precision, " +
-      "squelches repeated text/boolean values (notification, state, switch paths), and drops deltas that don't change — cutting delta volume at the " +
-      "source, for every consumer, not just one subscriber.",
+      "squelches repeated text/boolean values, and publishes a separate derived source while preserving the authoritative raw stream.",
   };
 
   // ── Config schema ──────────────────────────────────────────────────────
@@ -19,17 +18,31 @@ module.exports = function (app) {
     properties: {
       heartbeatSeconds: {
         type: "number",
-        title: "Heartbeat interval (seconds)",
+        title: "Maximum output silence while input continues (seconds)",
         description:
-          "Forward a value at least this often even if it hasn't moved past its rounding resolution, so consumers don't see a stale timestamp.",
-        default: 60,
+          "When new input is still arriving, republish an unchanged derived value after this interval. This does not fabricate updates after an input source stops.",
+        default: 5,
         minimum: 1,
+      },
+      stateTtlSeconds: {
+        type: "number",
+        title: "Inactive state retention (seconds)",
+        description: "Forget state for inactive context/path/source combinations after this interval.",
+        default: 3600,
+        minimum: 60,
+      },
+      maxStateEntries: {
+        type: "integer",
+        title: "Maximum tracked context/path/source combinations",
+        description: "Evict the least-recently-seen state when this bound is reached.",
+        default: 10000,
+        minimum: 100,
       },
       unchangingCountThreshold: {
         type: "integer",
         title: "Unchanging value threshold (text/boolean paths)",
         description:
-          "Text and boolean values (notification/state/switch paths, etc.) have no rounding resolution, so they're squelched by exact-value repetition instead: this many consecutive identical readings must be seen before further repeats are dropped. Earlier repeats, and the heartbeat above, are always forwarded.",
+          "Text and boolean values (state/switch paths, etc.) have no rounding resolution, so they're squelched by exact-value repetition instead: this many consecutive identical readings must be seen before further repeats are dropped. Earlier repeats, and the refresh above, are always forwarded. Notification paths are never republished.",
         default: 10,
         minimum: 1,
       },
@@ -114,7 +127,7 @@ module.exports = function (app) {
             resolution: { type: "number", title: "Resolution (non-position paths)" },
             latResolution: { type: "number", title: "Latitude resolution (deg, position only)" },
             lonResolution: { type: "number", title: "Longitude resolution (deg, position only)" },
-            heartbeatSeconds: { type: "number", title: "Heartbeat override (seconds)" },
+            heartbeatSeconds: { type: "number", title: "Maximum output silence override (seconds)" },
             unchangingCountThreshold: {
               type: "integer",
               title: "Unchanging value threshold override (text/boolean paths)",
@@ -139,11 +152,14 @@ module.exports = function (app) {
 
   let filter = null;
   let statsTimer = null;
+  let pruneTimer = null;
+  let unsubscribes = [];
   const STATS_INTERVAL_MS = 60 * 60 * 1000;
+  const PRUNE_INTERVAL_MS = 60 * 1000;
 
   plugin.start = function (options) {
     const { SquelchFilter } = require("./lib/filter");
-    filter = new SquelchFilter(options || {});
+    filter = new SquelchFilter(options || {}, { getMetadata: app.getMetadata });
 
     statsTimer = setInterval(() => {
       const { total, suppressed, spikes } = filter.takeStats();
@@ -152,49 +168,75 @@ module.exports = function (app) {
     }, STATS_INTERVAL_MS);
     statsTimer.unref?.();
 
-    app.registerDeltaInputHandler((delta, next) => {
-      // Once stopped, `filter` is cleared but the server API gives plugins no
-      // way to unregister a delta input handler, so this closure keeps
-      // running — pass everything through untouched rather than crash.
-      if (!filter || !delta.updates) return next(delta);
+    pruneTimer = setInterval(() => filter?.prune(), PRUNE_INTERVAL_MS);
+    pruneTimer.unref?.();
 
-      const isSelf = delta.context === app.selfContext;
+    unsubscribes = [];
+    app.subscriptionmanager.subscribe(
+      {
+        context: "*",
+        sourcePolicy: "preferred",
+        excludeSelf: true,
+        subscribe: [{ path: "*" }],
+      },
+      unsubscribes,
+      (error) => app.setPluginError(`Subscription error: ${error?.message || error}`),
+      (delta) => {
+        if (!filter || !delta?.updates) return;
 
-      delta.updates = delta.updates.filter((update) => {
-        const source = update.$source || update.source?.label || "unknown";
-        if (update.values && update.values.length > 0) {
-          update.values = update.values.filter((pv) => {
-            const result = filter.process(delta.context, pv.path, pv.value, isSelf, source);
+        const isSelf = delta.context === app.selfContext;
+        const updates = [];
+
+        for (const update of delta.updates) {
+          const source = update.$source || update.source?.label || "unknown";
+          if (source === PLUGIN_ID || !Array.isArray(update.values)) continue;
+
+          const values = [];
+          for (const pathValue of update.values) {
+            if (!filter.handles(pathValue.path, pathValue.value)) continue;
+
+            const result = filter.process(delta.context, pathValue.path, pathValue.value, isSelf, source);
             if (!result.keep) {
               if (result.reason === "spike") {
                 const { from, to, source: spikeSource, distanceM, impliedSpeedMs, elapsedS } = result.spike;
                 const loggedContext = isSelf ? "self" : delta.context;
                 app.debug(
-                  `squelch: rejected GNSS spike on ${loggedContext}:${pv.path} [${spikeSource || "unknown"}] — ` +
+                  `squelch: rejected GNSS spike on ${loggedContext}:${pathValue.path} [${spikeSource || "unknown"}] — ` +
                     `(${from.latitude}, ${from.longitude}) -> (${to.latitude}, ${to.longitude}) ` +
                     `over ${elapsedS.toFixed(2)}s, ${distanceM.toFixed(1)}m implying ${impliedSpeedMs.toFixed(2)}m/s`,
                 );
               }
-              return false;
+              continue;
             }
-            pv.value = result.value;
-            return true;
-          });
+
+            values.push({ ...pathValue, value: result.value });
+          }
+
+          if (values.length > 0) {
+            updates.push({
+              $source: PLUGIN_ID,
+              timestamp: update.timestamp || new Date().toISOString(),
+              values,
+            });
+          }
         }
-        return (update.values && update.values.length > 0) || (update.meta && update.meta.length > 0);
-      });
 
-      if (delta.updates.length > 0) next(delta);
-      // else: the whole delta was redundant noise — intentionally dropped
-    });
+        if (updates.length > 0) {
+          app.handleMessage(PLUGIN_ID, { context: delta.context, updates });
+        }
+      },
+    );
 
-    app.setPluginStatus("Filtering active");
+    app.setPluginStatus(`Publishing safe derived values as ${PLUGIN_ID}`);
   };
 
   plugin.stop = function () {
+    unsubscribes.splice(0).forEach((unsubscribe) => unsubscribe());
     filter = null;
     if (statsTimer) clearInterval(statsTimer);
+    if (pruneTimer) clearInterval(pruneTimer);
     statsTimer = null;
+    pruneTimer = null;
   };
 
   return plugin;

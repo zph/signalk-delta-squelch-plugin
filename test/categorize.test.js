@@ -45,4 +45,16 @@ describe("categorize", () => {
   test("returns null for unrecognised paths", () => {
     assert.equal(categorize("electrical.batteries.house.stateOfCharge"), null);
   });
+
+  test("does not infer units from misleading compound path names", () => {
+    assert.equal(categorize("performance.polarSpeedRatio"), null);
+    assert.equal(categorize("navigation.magneticVariationAgeOfService"), null);
+    assert.equal(categorize("performance.beatAngleVelocityMadeGood"), "velocity");
+  });
+
+  test("prefers declared Signal K units and rejects unknown unit categories", () => {
+    assert.equal(categorize("custom.anything", "m/s"), "velocity");
+    assert.equal(categorize("performance.polarSpeedRatio", "ratio"), null);
+    assert.equal(categorize("environment.outside.humidity", "ratio"), "humidity");
+  });
 });

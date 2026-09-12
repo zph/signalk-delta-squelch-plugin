@@ -15,6 +15,16 @@ describe("SquelchFilter — unrecognised paths", () => {
     const result = filter.process("vessels.self", "electrical.batteries.house.stateOfCharge", 12.68765, true);
     assert.deepEqual(result, { keep: true, value: 12.68765 });
   });
+
+  test("does not derive notification events", () => {
+    const filter = new SquelchFilter();
+    assert.equal(filter.handles("notifications.navigation.anchor", "alarm"), false);
+  });
+
+  test("ignores malformed values without a path", () => {
+    const filter = new SquelchFilter();
+    assert.equal(filter.handles(undefined, 12.3), false);
+  });
 });
 
 describe("SquelchFilter — scalar categories (e.g. temperature)", () => {
@@ -26,26 +36,26 @@ describe("SquelchFilter — scalar categories (e.g. temperature)", () => {
     assert.equal(result.value, 288.15); // default temperature resolution is 0.01K
   });
 
-  test("drops readings that don't move past the resolution's hysteresis margin", () => {
+  test("drops readings that stay within one resolution step of the displayed value", () => {
     const clock = makeClock(0);
     const filter = new SquelchFilter({}, clock);
     filter.process("vessels.self", "environment.water.temperature", 288.134, true);
     clock.advance(1000);
-    const result = filter.process("vessels.self", "environment.water.temperature", 288.137, true); // +0.003, well under 0.015
+    const result = filter.process("vessels.self", "environment.water.temperature", 288.137, true); // +0.003, under 0.01
     assert.equal(result.keep, false);
   });
 
-  test("forwards once the raw value moves past the hysteresis margin", () => {
+  test("forwards once the raw value moves one resolution step from the displayed value", () => {
     const clock = makeClock(0);
     const filter = new SquelchFilter({}, clock);
     filter.process("vessels.self", "environment.water.temperature", 288.0, true);
     clock.advance(1000);
-    const result = filter.process("vessels.self", "environment.water.temperature", 288.2, true); // +0.2, past 0.15 margin
+    const result = filter.process("vessels.self", "environment.water.temperature", 288.2, true);
     assert.equal(result.keep, true);
     assert.equal(result.value, 288.2);
   });
 
-  test("forwards a heartbeat once the interval elapses, even with no movement", () => {
+  test("refreshes on the next input once the interval elapses, even with no movement", () => {
     const clock = makeClock(0);
     const filter = new SquelchFilter({ heartbeatSeconds: 10 }, clock);
     filter.process("vessels.self", "environment.water.temperature", 288.0, true);
@@ -115,7 +125,7 @@ describe("SquelchFilter — text/boolean state values", () => {
     assert.equal(filter.process("vessels.self", "navigation.state", "sailing", true).keep, false);
   });
 
-  test("still forwards a heartbeat once suppressed", () => {
+  test("still refreshes on a later input once suppression starts", () => {
     const clock = makeClock(0);
     const filter = new SquelchFilter({ heartbeatSeconds: 10, unchangingCountThreshold: 1 }, clock);
     filter.process("vessels.self", "navigation.state", "sailing", true);
@@ -170,7 +180,7 @@ describe("SquelchFilter — position rounding", () => {
     const filter = new SquelchFilter({}, clock);
     filter.process("vessels.self", "navigation.position", samples[0], true);
     for (let i = 1; i < samples.length; i++) {
-      clock.advance(5000);
+      clock.advance(500);
       const result = filter.process("vessels.self", "navigation.position", samples[i], true);
       assert.equal(result.keep, false, `sample ${i} should have been squelched`);
     }
@@ -182,6 +192,17 @@ describe("SquelchFilter — position rounding", () => {
     const result = filter.process("vessels.self", "navigation.position", samples[0], true);
     assert.equal(result.value.latitude, 55.773);
     assert.equal(result.value.longitude, -4.858);
+  });
+
+  test("preserves valid position object fields other than latitude and longitude", () => {
+    const filter = new SquelchFilter();
+    const result = filter.process(
+      "vessels.self",
+      "navigation.position",
+      { latitude: 55.7725812, longitude: -4.8579082, altitude: 14.2 },
+      true,
+    );
+    assert.deepEqual(result.value, { latitude: 55.772581, longitude: -4.857908, altitude: 14.2 });
   });
 });
 
@@ -292,6 +313,24 @@ describe("SquelchFilter — position outlier (anchor-watch GNSS spike) rejection
     const result = filter.process("vessels.self", "navigation.position", spike, true, "garmin-gps.1");
     assert.equal(result.spike.source, "garmin-gps.1");
   });
+
+  test("checks a jump against the latest plausible received fix, not the last emitted fix", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({ heartbeatSeconds: 60, positionOutlier: { minDistanceM: 0 } }, clock);
+    filter.process("vessels.self", "navigation.position", anchored, true, "gps.1");
+
+    for (let second = 1; second <= 5; second += 1) {
+      clock.advance(1000);
+      assert.equal(filter.process("vessels.self", "navigation.position", anchored, true, "gps.1").keep, false);
+    }
+
+    clock.advance(1000);
+    const jumped = { latitude: anchored.latitude + 100 / 111_195, longitude: anchored.longitude };
+    const result = filter.process("vessels.self", "navigation.position", jumped, true, "gps.1");
+    assert.equal(result.keep, false);
+    assert.equal(result.reason, "spike");
+    assert.ok(result.spike.elapsedS < 1.01);
+  });
 });
 
 describe("SquelchFilter — per-source state isolation", () => {
@@ -374,5 +413,37 @@ describe("SquelchFilter — stats", () => {
     filter.process("vessels.self", "environment.water.temperature", 288.01, true);
     filter.takeStats();
     assert.deepEqual(filter.takeStats(), { total: 0, suppressed: 0, spikes: 0 });
+  });
+});
+
+describe("SquelchFilter — bounded state", () => {
+  test("evicts least-recently-seen context state at the configured bound", () => {
+    const filter = new SquelchFilter({ maxStateEntries: 3, positionOutlier: { enabled: false } });
+    for (let index = 0; index < 4; index += 1) {
+      filter.process(`vessels.urn:mrn:imo:mmsi:${index}`, "navigation.position", { latitude: 55, longitude: -4 }, false, "ais.1");
+    }
+    assert.equal(filter.lastSeen.size, 3);
+    assert.equal(filter.lastAccepted.size, 3);
+    assert.equal(filter.lastAccepted.has("vessels.urn:mrn:imo:mmsi:0:navigation.position:ais.1"), false);
+  });
+
+  test("expires inactive context state by age", () => {
+    const clock = makeClock(0);
+    const filter = new SquelchFilter({ stateTtlSeconds: 60 }, clock);
+    filter.process("vessels.self", "environment.water.temperature", 288, true, "temp.1");
+    clock.advance(60_001);
+    assert.equal(filter.prune(), 1);
+    assert.equal(filter.lastAccepted.size, 0);
+    assert.equal(filter.lastSeen.size, 0);
+  });
+});
+
+describe("SquelchFilter — safe quantization", () => {
+  test("does not retain the nearly two-step error from the old hysteresis", () => {
+    const filter = new SquelchFilter();
+    assert.equal(filter.process("vessels.self", "environment.depth.belowTransducer", 10.051, true, "depth.1").value, 10.1);
+    const next = filter.process("vessels.self", "environment.depth.belowTransducer", 9.9021, true, "depth.1");
+    assert.equal(next.keep, true);
+    assert.equal(next.value, 9.9);
   });
 });

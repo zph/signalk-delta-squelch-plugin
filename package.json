@@ -1,7 +1,7 @@
 {
   "name": "@rhizomatics/signalk-delta-squelch-plugin",
-  "version": "0.4.6",
-  "description": "Clean up noisy SignalK deltas by rounding to sensor's real precision and throttling insignificant or unchanging deltas, reducing compute and storage usage and false anchor alerts.",
+  "version": "0.5.0-zph.1",
+  "description": "Publish a bounded, unit-aware, lower-noise Signal K derived stream while preserving authoritative raw sensor data.",
   "keywords": [
     "anchor-watch",
     "filter",
@@ -12,15 +12,15 @@
     "signalk-category-utility",
     "signalk-node-server-plugin"
   ],
-  "homepage": "https://github.com/rhizomatics/signalk-delta-squelch-plugin",
+  "homepage": "https://github.com/zph/signalk-delta-squelch-plugin",
   "bugs": {
-    "url": "https://github.com/rhizomatics/signalk-delta-squelch-plugin/issues"
+    "url": "https://github.com/zph/signalk-delta-squelch-plugin/issues"
   },
   "license": "APACHE-2.0",
   "author": "jey burrows",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/rhizomatics/signalk-delta-squelch-plugin.git"
+    "url": "git+https://github.com/zph/signalk-delta-squelch-plugin.git"
   },
   "files": [
     "index.js",
@@ -34,17 +34,20 @@
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "lint": "oxlint",
-    "test": "node --test",
-    "test:coverage": "node --experimental-test-coverage --test-coverage-include=\"lib/**/*.js\" --test-coverage-lines=90 --test-coverage-branches=85 --test-coverage-functions=90 --test"
+    "test": "node --test test/*.test.js",
+    "test:all": "npm test && npm run test:integration",
+    "test:coverage": "node --experimental-test-coverage --test-coverage-include=\"lib/**/*.js\" --test-coverage-lines=90 --test-coverage-branches=85 --test-coverage-functions=90 --test test/*.test.js",
+    "test:integration": "node --test test/integration/integration.test.js"
   },
   "devDependencies": {
     "oxfmt": "^0.61.0",
     "oxlint": "^1.75.0",
-    "oxlint-tsgolint": "^7.0.2001"
+    "oxlint-tsgolint": "^7.0.2001",
+    "signalk-server": "2.31.1"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "signalk-server": "*"
+    "node": ">=22.0.0",
+    "signalk-server": ">=2.31.1"
   },
   "signalk": {
     "displayName": "Delta Squelch",
